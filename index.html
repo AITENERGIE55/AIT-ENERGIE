@@ -1,11 +1,79 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Étude Photovoltaïque - AIT FRANCE</title>
+  <title>Étude Solaire - AIT FRANCE ÉNERGIE</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; padding: 20px; }
+    label { display: block; margin-top: 15px; font-weight: bold; }
+    input { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 20px; padding: 10px 20px; font-size: 16px; }
+    .result { margin-top: 30px; padding: 15px; border: 1px solid #ccc; }
+  </style>
+  <script>
+    const password = prompt("Entrez le mot de passe pour accéder à l'outil :");
+    if (password !== "solar2025") {
+      document.body.innerHTML = "<h1>Accès refusé</h1>";
+    }
+
+    async function lancerEtude() {
+      const adresse = document.getElementById("adresse").value;
+      const puissanceW = parseFloat(document.getElementById("puissance").value);
+      const surfacePanneau = parseFloat(document.getElementById("surfacePanneau").value);
+      const transfoMax = parseFloat(document.getElementById("transfo").value);
+      const prixKwh = parseFloat(document.getElementById("prix").value);
+
+      const geo = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(adresse)}&key=AIzaSyDPoEiCjTHLWGBsWPtO93jgXgsksix0EIU`);
+      const geoData = await geo.json();
+      if (geoData.status !== "OK") return alert("Adresse introuvable.");
+      const { lat, lng } = geoData.results[0].geometry.location;
+
+      const solar = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${lat}&location.longitude=${lng}&key=AIzaSyDPoEiCjTHLWGBsWPtO93jgXgsksix0EIU`);
+      const solarData = await solar.json();
+      if (!solarData.solarPotential) return alert("Aucune donnée solaire trouvée.");
+
+      const surface = solarData.solarPotential.panelAreaMeters2 || 0;
+      const prodKwh = solarData.solarPotential.annualKwh || 0;
+      const nbPanneaux = Math.floor(surface / surfacePanneau);
+      const puissanceTotale = (nbPanneaux * puissanceW) / 1000;
+      const facteurInject = Math.min(1, transfoMax / puissanceTotale);
+      const injectee = prodKwh * facteurInject;
+      const surplus = prodKwh - injectee;
+      const revenu = injectee * prixKwh;
+
+      document.getElementById("resultat").innerHTML = `
+        <h2>Résultats de l'étude :</h2>
+        <p><strong>Surface exploitable :</strong> ${surface.toFixed(1)} m²</p>
+        <p><strong>Nombre de panneaux :</strong> ${nbPanneaux}</p>
+        <p><strong>Production estimée :</strong> ${prodKwh.toFixed(0)} kWh/an</p>
+        <p><strong>Injectée (transfo ${transfoMax} kW) :</strong> ${injectee.toFixed(0)} kWh/an</p>
+        <p><strong>Surplus :</strong> ${surplus.toFixed(0)} kWh/an</p>
+        <p><strong>Revenu estimé :</strong> ${revenu.toFixed(2)} €/an</p>
+      `;
+    }
+  </script>
 </head>
 <body>
-  <h1>Bienvenue sur l'application solaire AIT FRANCE</h1>
-  <p>Ce projet est prêt à être déployé sur Vercel.</p>
+  <h1>AIT FRANCE ÉNERGIE - Étude photovoltaïque</h1>
+
+  <label>Adresse :</label>
+  <input id="adresse" placeholder="Ex : 61 bd de l’Europe, Vitrolles" />
+
+  <label>Puissance d’un panneau (W) :</label>
+  <input id="puissance" type="number" value="500" />
+
+  <label>Surface d’un panneau (m²) :</label>
+  <input id="surfacePanneau" type="number" value="2" />
+
+  <label>Puissance maximale transfo (kW) :</label>
+  <input id="transfo" type="number" value="250" />
+
+  <label>Prix de rachat du kWh (€) :</label>
+  <input id="prix" type="number" value="0.095" step="0.001" />
+
+  <button onclick="lancerEtude()">Lancer l’étude</button>
+
+  <div id="resultat" class="result"></div>
 </body>
 </html>
